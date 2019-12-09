@@ -3,14 +3,14 @@ import sqlite3
 import requests
 from bs4 import BeautifulSoup
 
-headers = {'User-Agent': 'Mozilla/5.0'}
+headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/78.0.3904.108 Safari/537.36'}
 
 
 def get_stock_list():
     main_url = 'https://kabuoji3.com/stock/'
     page_url = 'https://kabuoji3.com/stock/?page={}'
     main_page = requests.get(main_url, headers=headers)
-    main_page_soup = BeautifulSoup(main_page.text)
+    main_page_soup = BeautifulSoup(main_page.text, 'lxml')
     page_nums = []
 
     for a in main_page_soup.find('ul', {'class': 'pager'}).find_all('a'):
@@ -29,7 +29,7 @@ def get_stock_list():
             td_list = tr.find_all('td')
             stock_num, stock_name = td_list[0].a.text.split(' ', 1)
             stock_market = td_list[1].text
-            stock_list.append({'number': stock_num, 'name': stock_name, 'market': stock_market, 'link': link})
+            stock_list.append([stock_num, stock_name, stock_market, link])
 
     return stock_list
 
@@ -55,14 +55,26 @@ def get_stock_data(**kwargs):
     return data_list
 
 
-def insert_data(data):
-    conn = sqlite3.connect('stock.db')
+def insert_stock_list(data):
+    conn = sqlite3.connect('stocks.db')
     c = conn.cursor()
-    # c.execute('DROP TABLE stocks')
+    c.execute("DROP TABLE IF EXISTS stocks")
     c.execute('''CREATE TABLE stocks
-            (number text, name text, market text, date timestamp, open real, high real, low real, close real, volume real)''')
-    c.executemany('INSERT INTO stocks VALUES (?,?,?,?,?,?,?)', data)
-    # todo: add commit database and so on...
+            (number text, name text, market text, url text)''')
+    c.executemany('INSERT INTO stocks VALUES (?,?,?,?)', data)
+    conn.commit()
+    conn.close()
+
+
+def insert_daily_data(data, conn):
+    # conn = sqlite3.connect('stocks.db')
+    c = conn.cursor()
+    c.execute("DROP TABLE IF EXISTS daily")
+    c.execute('''CREATE TABLE daily
+                (number text, date timestamp, open integer, high integer, low integer, close integer, volume integer)''')
+    c.executemany('INSERT INTO daily VALUES (?,?,?,?,?,?,?)', data)
+    conn.commit()
+
 
 
 def get_high_low_rate(first=None, last=None, top=None, bottom=None):
